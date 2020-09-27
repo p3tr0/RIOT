@@ -68,12 +68,26 @@ static inline void _reset(dht_t *dev)
  */
 static inline int _wait_for_level(gpio_t pin, bool expect, unsigned timeout)
 {
+#ifdef BOARD_ARDUINO_UNO
+    /* in case of Arduino Uno board xtimer resolution is more than 1 us
+     * so following workaround just allows properly read DHT sensor on
+     * such boards */
+    const xtimer_ticks32_t ticks = { .ticks32 = 1 };
+    const uint32_t usecs_per_tick = xtimer_usec_from_ticks(ticks);
+    while (((gpio_read(pin) > 0) != expect) && timeout > usecs_per_tick) {
+        xtimer_spin(ticks);
+        timeout -= usecs_per_tick;
+    }
+
+    return (timeout > usecs_per_tick) ? 0 : -1;
+#else
     while (((gpio_read(pin) > 0) != expect) && timeout) {
         xtimer_usleep(1);
         timeout--;
     }
 
     return (timeout > 0) ? 0 : -1;
+#endif
 }
 
 static int _read(uint16_t *dest, gpio_t pin, int bits)
